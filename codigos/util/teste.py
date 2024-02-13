@@ -1,27 +1,30 @@
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
 
-def sombra(imagem):
+import numpy as np
+import cv2
+
+def remove_shadow(imagem):
     _, mascara = cv2.threshold(imagem, 224, 255, cv2.THRESH_BINARY_INV)
     elemEst = np.ones((5, 5), np.uint8)
     mascara_sombra = cv2.morphologyEx(mascara, cv2.MORPH_OPEN, elemEst)
     img = cv2.addWeighted(imagem, 1, mascara_sombra, 0.2, 0)
     return img
 
+
 def processamento(imagem):
-    imgPre = cv2.GaussianBlur(imagem, (5, 5), 1)
-    elemEst = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    imgPre = cv2.GaussianBlur(imagem, (5, 5), 1.5)
+    elemEst = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
     imgPre = cv2.morphologyEx(imgPre, cv2.MORPH_OPEN, elemEst)
-    imgPre = cv2.Canny(imgPre, 0, 255)
+    imgPre =  cv2.Canny(imgPre, 0, 255) #edge_detection_sobel(imagem)
     contornos, _ = cv2.findContours(imgPre, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for contorno in contornos:
         x, y, w, h = cv2.boundingRect(contorno)
         cv2.rectangle(imagem, (x, y), (x+w, y+h), (0, 0, 0), 2) 
     return imagem
 
+
 def limites(imagem_original, imagem_borda):
-    contador = [0, 0, 0]  # Inicialize o contador
+    contador = [0, 0, 0]
+    imagem_borda = cv2.cvtColor(imagem_borda, cv2.COLOR_BGR2GRAY)
     contornos, _ = cv2.findContours(imagem_borda, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for contorno in contornos:
         x, y, w, h = cv2.boundingRect(contorno)
@@ -49,27 +52,6 @@ def limites(imagem_original, imagem_borda):
             contador[2] += 1
 
         plt.savefig(texto + ".png")
+
         cv2.putText(imagem_original, texto, (x, y),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-        exibir(imagem_original)
-
-# Função para exibir imagem
-def exibir(img):
-    cv2.imshow('Imagem', img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-# Carregar imagem de exemplo
-imagem = cv2.imread('../images/entrada.png')
-
-# Aplicar filtro de sombra
-imagem = sombra(imagem)
-
-# Processamento de imagem
-imagem_processada = processamento(imagem)
-
-# Exibir imagem processada
-exibir(imagem_processada)
-
-# Calcular e exibir limites
-limites(imagem, imagem_processada)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
