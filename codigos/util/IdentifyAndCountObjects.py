@@ -15,10 +15,11 @@ class ObjectDetector:
         image_not_shadow = ObjectDetector.remove_shadow(image)
 
         #Operations.display(image_not_shadow, "Imagem sem sombra.")
-        Operations.save_image(image_not_shadow, 'cache/image_not_shadow.jpg')
+        #Operations.save_image(image_not_shadow, 'cache/image_not_shadow.jpg')
         
         # Segmentar objetos por cor
         color_ranges = {
+            "marrom": ([26, 16, 175], [46, 36, 195]),   # Definir intervalo de cor para marrom
             "vermelho": ([0, 100, 100], [10, 255, 255]),  # Definir intervalo de cor para vermelho
             "verde": ([36, 25, 25], [70, 255, 255]),      # Definir intervalo de cor para verde
             "azul": ([100, 100, 100], [140, 255, 255])   # Definir intervalo de cor para azul
@@ -28,7 +29,7 @@ class ObjectDetector:
         # Segmentar objetos por forma
         shape_segmentation = self.segment_by_shape(image_not_shadow)
 
-        Operations.display(shape_segmentation, "Segamentação por forma")
+        #Operations.display(shape_segmentation, "Segamentação por forma")
 
         # Detectar objetos na imagem segmentada por forma
         objects_detected, image_with_classification = self.detect_objects_from_segmented_image(shape_segmentation, image)
@@ -48,6 +49,42 @@ class ObjectDetector:
             mask = cv2.inRange(hsv_image, lower_color, upper_color)
             segmented_objects[color_name] = cv2.bitwise_and(image, image, mask=mask)
 
+        # Suponhamos que os objetos marrons estão no intervalo 'vermelho' por simplicidade
+        brown_objects_mask = segmented_objects["marrom"]
+
+        # Aplicar Watershed para separar objetos justapostos
+        # Primeiro, converta a máscara para cinza e binarize-a
+        gray = cv2.cvtColor(brown_objects_mask, cv2.COLOR_BGR2GRAY)
+        ret, binary_mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+        # Removendo ruído com abertura
+        kernel = np.ones((3, 3), np.uint8)
+        opening = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel, iterations=2)
+
+        # Encontrar área de fundo com dilatação
+        sure_bg = cv2.dilate(opening, kernel, iterations=3)
+
+        # Encontrar área de primeiro plano seguro
+        dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
+        ret, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 255, 0)
+
+        # Encontrar área desconhecida (bordas entre objetos)
+        sure_fg = np.uint8(sure_fg)
+        unknown = cv2.subtract(sure_bg, sure_fg)
+
+        # Rotular os componentes conectados
+        ret, markers = cv2.connectedComponents(sure_fg)
+
+        # Incrementar todos os marcadores em 1 e marcar área desconhecida com 0
+        markers = markers + 1
+        markers[unknown == 255] = 0
+
+        # Aplicar Watershed
+        markers = cv2.watershed(image, markers)
+        image[markers == -1] = [0, 255, 0]  # As bordas dos objetos ficarão verdes
+
+        segmented_objects['watershed'] = image
+
         return segmented_objects
     
     def segment_by_shape(self, image):
@@ -55,18 +92,18 @@ class ObjectDetector:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
         # Suavização usando filtro Gaussiano
-        gray = cv2.GaussianBlur(gray, (5, 5), 0.5)
+        gray = cv2.GaussianBlur(gray, (7, 7), 0)
 
-        Operations.display(gray, "Suavização com Blur")
-        Operations.save_image(gray, 'cache/image_gray_soft.jpg')
-
+        #Operations.display(gray, "Suavização com Blur")
+        #Operations.save_image(gray, 'cache/image_gray_soft.jpg')
+        
         # Aplicar operações morfológicas para suavizar as bordas e corrigir objetos justapostos
-        kernel = np.ones((7, 7), np.uint8)
+        kernel = np.ones((5, 5), np.uint8)
         closing = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
         opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, kernel)
 
         # Detecção de bordas
-        edges = cv2.Canny(opening, 100, 200)
+        edges = cv2.Canny(opening, 20, 180)
 
         # Aplicar dilatação para unir áreas próximas e corrigir bordas mal definidas
         dilation = cv2.dilate(edges, kernel, iterations=1)
@@ -125,4 +162,3 @@ class ObjectDetector:
         # Adicionar a sombra removida à imagem original com uma leve transparência
         img = cv2.addWeighted(imagem, 1.1, mascara_sombra, 0.1, 0)
         return img
-
