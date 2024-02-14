@@ -24,3 +24,11 @@ class Operations:
             os.makedirs(directory)
 
         cv2.imwrite(save_path, image)
+
+    @staticmethod
+    def open_image(image_path):
+        # Carregar a imagem do caminho fornecido
+        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError(f"Não foi possível abrir a imagem no caminho: {image_path}")
+        return image

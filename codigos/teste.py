@@ -2,47 +2,92 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 
+contador = [0, 0, 0]
 
-def remove_shadow(imagem):
+def limites(imagem_original=cv2.Mat, imagem_borda=cv2.Mat):
+    contornos, _ = cv2.findContours(
+        imagem_borda, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Aplicar limiarização para segmentar a sombra da imagem
-    _, mascara = cv2.threshold(imagem, 220, 255, cv2.THRESH_BINARY_INV)
-    elemEst = np.ones((5, 5), np.uint8)
-    
-    # Aplicar abertura morfológica para remover pequenos ruídos e suavizar a sombra
-    mascara_sombra = cv2.morphologyEx(mascara, cv2.MORPH_OPEN, elemEst)
-    
-    # Adicionar a sombra removida à imagem original com uma leve transparência
-    img = cv2.addWeighted(imagem, 1.1, mascara_sombra, 0.1, 0)
+    for contorno in contornos:
+        x, y, w, h = cv2.boundingRect(contorno)
+
+        sub = imagem_original[y:y+h, x:x+w]
+        color = ('b', 'g', 'r')
+        médias = []
+        variânças = []
+        for i, col in enumerate(color):
+            histograma = cv2.calcHist([sub], [i], None, [256], [0, 256])
+            k = np.mean(sub[:, :, i])
+            v = np.var(sub[:, :, i])
+            médias.append(k)
+            variânças.append(v)
+            plt.plot(histograma, color=col)
+            plt.xlim([0, 256])
+        m = max(médias)
+        v = médias[2] - médias[1]
+        texto = "0"
+        if m < 100:
+            texto = "pimenta "
+            contador[0] += 1
+        elif v < 26:
+            texto = "ervilha "
+            contador[1] += 1
+        else:
+            texto = "feijao "
+            contador[2] += 1    
+        plt.savefig(texto + ".png")
+        plt.clf()
+        cv2.putText(imagem_original, texto, (x, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+
+    exibir(imagem_original)
+
+
+def sombra(imagem=cv2.Mat) -> cv2.Mat:
+    _, máscara = cv2.threshold(imagem, 224, 255, cv2.THRESH_BINARY_INV)
+    elemEst = np.ones((7, 7), np.uint8)
+    máscara_sombra = cv2.morphologyEx(máscara, cv2.MORPH_OPEN, elemEst)
+    img = cv2.addWeighted(imagem, 1.1, máscara_sombra, 0.1, 0)
     return img
 
 
-# Load the image
-image_path = '../images/othergroup.jpg'
-image = cv2.imread(image_path)
+def processamento(imagem=cv2.Mat) -> cv2.Mat:
+    imgPre = cv2.GaussianBlur(imagem, (7, 7), 0)
 
-# Convert the image to grayscale
-gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    elemEst = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    imgPre = cv2.morphologyEx(imgPre, cv2.MORPH_OPEN, elemEst)
 
-gray = remove_shadow(gray)
+    imgPre = cv2.Canny(imgPre, 20, 180)
+    contornos, _ = cv2.findContours(
+        imgPre, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-# Apply GaussianBlur, which is useful for removing noise
-blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    for contorno in contornos:
+        x, y, w, h = cv2.boundingRect(contorno)
+        cv2.rectangle(imagem, (x, y), (x+w, y+h), (0, 0, 0), 2)
+    return imgPre
 
-# Thresholding to get binary image
-_, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
-# Find contours from the binary image
-contours, hierarchy = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+def exibir(imagem=cv2.Mat) -> None:
+    cv2.namedWindow("My Image", cv2.WINDOW_NORMAL)
 
-# Draw contours on the original image
-contoured_image = image.copy()
-cv2.drawContours(contoured_image, contours, -1, (0, 255, 0), 2)
+    altura = 800
+    lagura = 600
+    cv2.resizeWindow("My Image", lagura, altura)
 
-# Show the original and contoured images
-plt.figure(figsize=(10, 10))
+    cv2.imshow("My Image", imagem)
 
-plt.imshow(cv2.cvtColor(contoured_image, cv2.COLOR_BGR2RGB))
-plt.title('Image with Contours')
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
-plt.show()
+
+def main():
+    img_cor = cv2.imread("../images/img3.jpg")
+    img = cv2.imread('../images/img3.jpg', cv2.IMREAD_GRAYSCALE)
+    img = sombra(img)
+    exibir(img)
+    img = processamento(img)
+    exibir(img)
+    limites(img_cor, img)
+
+
+main()
