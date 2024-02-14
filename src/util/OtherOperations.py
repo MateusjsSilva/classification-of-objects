@@ -32,3 +32,22 @@ class Operations:
         if image is None:
             raise ValueError(f"Não foi possível abrir a imagem no caminho: {image_path}")
         return image
+
+    @staticmethod
+    def resize_image(image, max_width=800, max_height=800):
+        """
+        Redimensiona a imagem para um tamanho máximo especificado.
+        """
+        height, width = image.shape[:2]
+        if width > max_width or height > max_height:
+            # Determina a proporção de redimensionamento
+            aspect_ratio = width / height
+            if aspect_ratio > 1:
+                new_width = max_width
+                new_height = int(max_width / aspect_ratio)
+            else:
+                new_height = max_height
+                new_width = int(max_height * aspect_ratio)
+            # Redimensiona a imagem
+            image = cv2.resize(image, (new_width, new_height))
+        return image
