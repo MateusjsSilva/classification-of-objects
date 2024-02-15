@@ -5,7 +5,7 @@ from util.HistogramOperations import HistogramProcessor as Hist
 # Função principal
 def main():
 
-    file_name = '../resources/images/img5.jpg'
+    file_name = '../resources/images/other.jpg'
 
     detector = ObjectDetector()
 
@@ -13,6 +13,7 @@ def main():
     image_with_classification, _, image_with_segmebtacion, _ = detector.process_image(file_name)
 
     Operations.display(image_with_classification, "Resultado")
+    Operations.save_image(image_with_classification, '../resources/results/other/resultado.jpg')
     #Operations.display(image_with_segmebtacion, "Resultado")
 
 

@@ -14,6 +14,8 @@ class ObjectDetector:
 
         # Remove sombra
         image_not_shadow = self.remove_shadow(image)
+
+        Operations.save_image(image_not_shadow, '../resources/results/other/image_not_shadow.jpg')
         
         # Segmenta por forma
         shape_segmentation = self.segment_by_shape(image_not_shadow)
@@ -29,24 +31,28 @@ class ObjectDetector:
     def segment_by_shape(self, image):
 
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (7, 7), 0)
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
 
-        # Aplicar operações morfológicas para suavizar as bordas e corrigir objetos justapostos
-        kernel = np.ones((3, 3), np.uint8)
+        Operations.save_image(gray, '../resources/results/other/blur.jpg')
+
+        # Aplicar operações morfológicas para suavizar as bordas
+        kernel = np.ones((5, 5), np.uint8)
         closing = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
-        opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, kernel)
         
+        # Aplicar erosão para diminuir objetos e tentar desconectar
+        kernel_erosion = np.ones((5, 5), np.uint8)
+        dilate = cv2.dilate(closing, kernel_erosion, iterations=6)
+        eroded = cv2.erode(dilate, kernel_erosion, iterations=2)
+
+        Operations.save_image(eroded, '../resources/results/other/eroded.jpg')
+
         # Detecção de bordas
-        edges = cv2.Canny(opening, 5, 130)
+        edges = cv2.Canny(eroded, 5, 130)
 
-        #Operations.display(edges, '')
-        Operations.save_image(edges, '../resources/results/edges.jpg')
+        Operations.save_image(edges, '../resources/results/other/edges.jpg')
 
-        # Aplicar dilatação para unir áreas próximas e corrigir bordas mal definidas
-        dilated = cv2.dilate(edges, kernel, iterations=1)
-
-        # Encontrar contornos após a dilatação
-        contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Encontrar contornos após a abertura
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         # Criar uma imagem em branco com as mesmas dimensões que a imagem de entrada
         result = np.zeros_like(image)
@@ -80,6 +86,8 @@ class ObjectDetector:
         Classifica objetos com base em tamanho, forma e cor, usando os centroids dos clusters de cor.
         """
         classified_objects = []
+        count_shapes = {'Triangle': 0, 'Square': 0, 'Rectangle': 0, 'Circle': 0, 'unidentified': 0}
+        count_colors = {'Black': 0, 'Orange': 0, 'Yellow': 0, 'Green': 0, 'Red': 0, 'Blue': 0, 'Purple': 0, 'Undefined': 0}
 
         for contour in contours:
             properties = {}
@@ -102,7 +110,10 @@ class ObjectDetector:
                 shape = "Circle"
 
             properties['shape'] = shape
-            
+
+            # Incrementa a contagem para a forma atual
+            count_shapes[shape] += 1
+
             # Calcula a cor predominante
             hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
             mask = np.zeros(image.shape[:2], np.uint8)
@@ -110,17 +121,36 @@ class ObjectDetector:
             object_hsv_dominant = self.get_object_hsv_dominant(hsv_image, mask)
             properties['color'] = self.classify_colors(object_hsv_dominant)
 
+            # Incrementa a contagem para a cor atual
+            count_colors[properties['color']] += 1
+
             classified_objects.append(properties)
-            
+
             # Opcional: Desenha a classificação na imagem
             M = cv2.moments(contour)
             if M["m00"] != 0:
                 cX = int(M["m10"] / M["m00"])
                 cY = int(M["m01"] / M["m00"])
                 label = f"{properties['color']}, {properties['shape']}"
-                cv2.putText(image, label, (cX, cY), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (247, 137, 47), 2)
-                
+                cv2.putText(image, label, (cX, cY), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+
+        # Obtém as dimensões da imagem
+        image_height, image_width, _ = image.shape
+
+        # Adiciona contagem de formas
+        for shape, count in count_shapes.items():
+            if count > 0:
+                cv2.putText(image, f'{shape}: {count}', (20, min(20 + 30 * (list(count_shapes.keys()).index(shape)), image_height - 10)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
+        # Adiciona contagem de cores
+        for color, count in count_colors.items():
+            if count > 0:
+                cv2.putText(image, f'{color}: {count}', (image_width - 150, min(20 + 30 * (list(count_colors.keys()).index(color)), image_height - 10)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
         return classified_objects, image
+
 
     def identify_shape(self, vertices, approx):
         if vertices == 3:
