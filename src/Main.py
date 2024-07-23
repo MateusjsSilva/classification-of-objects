@@ -2,20 +2,15 @@ from util.OtherOperations import Operations
 from util.IdentifyObjects import ObjectDetector
 from util.HistogramOperations import HistogramProcessor as Hist
 
-# Função principal
 def main():
 
-    file_name = '../resources/images/other.jpg'
+    file_name = './test/img/img2.jpg'
 
-    detector = ObjectDetector()
-
-    # Detectar e classificar objetos na imagem
-    image_with_classification, _, image_with_segmebtacion, _ = detector.process_image(file_name)
+    # Detect and classify objects in the image
+    image_with_classification, _, image_with_segmentacion, _ = ObjectDetector().process_image(file_name)
 
     Operations.display(image_with_classification, "Resultado")
-    Operations.save_image(image_with_classification, '../resources/results/other/resultado.jpg')
-    #Operations.display(image_with_segmebtacion, "Resultado")
-
+    Operations.save_image(image_with_classification, './test/results/img2/resultado.jpg')
 
 if __name__ == "__main__":
     main()
